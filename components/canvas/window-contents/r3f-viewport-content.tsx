@@ -444,6 +444,72 @@ function ViewportCamera({
 }
 
 // ============================================================================
+// FOCUS CONTROLLER
+// ============================================================================
+
+interface FocusControllerProps {
+  meshRef: React.MutableRefObject<THREE.Mesh | null>
+  trigger: number
+}
+
+/**
+ * When `trigger` changes, smoothly tween the OrbitControls target and the
+ * camera position to frame the referenced mesh. Uses the controls registered
+ * by <OrbitControls makeDefault />.
+ */
+function FocusController({ meshRef, trigger }: FocusControllerProps) {
+  const { camera, controls } = useThree() as any
+  const tweenStart = useRef<number | null>(null)
+  const fromTarget = useRef(new THREE.Vector3())
+  const fromPos = useRef(new THREE.Vector3())
+  const toTarget = useRef(new THREE.Vector3())
+  const toPos = useRef(new THREE.Vector3())
+  const duration = 0.6 // seconds
+
+  useEffect(() => {
+    if (!meshRef.current || !controls) return
+
+    const mesh = meshRef.current
+    const targetWorld = new THREE.Vector3()
+    mesh.getWorldPosition(targetWorld)
+
+    // Compute a bounding sphere to derive a comfortable camera distance
+    const box = new THREE.Box3().setFromObject(mesh)
+    const sphere = new THREE.Sphere()
+    box.getBoundingSphere(sphere)
+    const radius = Math.max(sphere.radius, 0.5)
+    const distance = radius * 3.5
+
+    // Keep current view direction; just move closer along it
+    const currentTarget: THREE.Vector3 = controls.target.clone()
+    const dir = camera.position.clone().sub(currentTarget).normalize()
+    if (!Number.isFinite(dir.x) || dir.lengthSq() === 0) dir.set(1, 1, 1).normalize()
+
+    fromTarget.current.copy(currentTarget)
+    fromPos.current.copy(camera.position)
+    toTarget.current.copy(targetWorld)
+    toPos.current.copy(targetWorld).addScaledVector(dir, distance)
+    tweenStart.current = performance.now() / 1000
+  }, [trigger, camera, controls, meshRef])
+
+  useFrame(() => {
+    if (tweenStart.current === null || !controls) return
+    const t = (performance.now() / 1000 - tweenStart.current) / duration
+    const k = Math.min(1, t)
+    // ease-out cubic
+    const e = 1 - Math.pow(1 - k, 3)
+
+    camera.position.lerpVectors(fromPos.current, toPos.current, e)
+    controls.target.lerpVectors(fromTarget.current, toTarget.current, e)
+    controls.update()
+
+    if (k >= 1) tweenStart.current = null
+  })
+
+  return null
+}
+
+// ============================================================================
 // MAIN VIEWPORT
 // ============================================================================
 
@@ -475,6 +541,21 @@ export function R3FViewportContent() {
   // Auto-focus whenever the selected id changes
   useEffect(() => {
     if (selectedId) setFocusTick(t => t + 1)
+  }, [selectedId])
+
+  // Keyboard shortcuts: F = focus selected, R = toggle slow rotation
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) return
+      if (e.key === 'f' || e.key === 'F') {
+        if (selectedId) setFocusTick(t => t + 1)
+      } else if (e.key === 'r' || e.key === 'R') {
+        setAutoRotate(r => !r)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [selectedId])
 
   const updateObject = (id: string, updates: Partial<SceneObjectData>) => {
@@ -547,6 +628,8 @@ export function R3FViewportContent() {
             key={obj.id}
             data={obj}
             isSelected={obj.id === selectedId}
+            autoRotate={autoRotate}
+            meshRef={obj.id === selectedId ? selectedMeshRef : undefined}
             onSelect={() => setSelectedId(obj.id)}
           />
         ))
@@ -735,6 +818,32 @@ export function R3FViewportContent() {
 
         <div className="flex-1" />
 
+        {source === 'r3f' && (
+          <>
+            <button
+              onClick={() => selectedObject && setFocusTick(t => t + 1)}
+              disabled={!selectedObject}
+              className={cn(
+                "p-1 rounded transition-colors text-muted-foreground hover:bg-muted hover:text-foreground",
+                "disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+              )}
+              title="Focus selected (F)"
+            >
+              <Crosshair className="w-3 h-3" />
+            </button>
+            <button
+              onClick={() => setAutoRotate(r => !r)}
+              className={cn(
+                "p-1 rounded transition-colors",
+                autoRotate ? "text-primary bg-primary/10" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+              title="Slow rotation on selected (R)"
+            >
+              <Repeat className="w-3 h-3" />
+            </button>
+          </>
+        )}
+
         <button
           onClick={() => setShowGrid(!showGrid)}
           className={cn(
@@ -827,6 +936,10 @@ export function R3FViewportContent() {
               minDistance={1}
               maxDistance={50}
             />
+
+            {source === 'r3f' && (
+              <FocusController meshRef={selectedMeshRef} trigger={focusTick} />
+            )}
 
             {source !== 'glsl' && (
               <Suspense fallback={null}>
