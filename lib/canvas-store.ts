@@ -352,13 +352,24 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   setActiveWindow: (id) => set({ activeWindowId: id }),
 
-  bringToFront: (id) => set((state) => ({
-    windows: state.windows.map(w => 
-      w.id === id ? { ...w, zIndex: state.maxZIndex + 1 } : w
-    ),
-    maxZIndex: state.maxZIndex + 1,
-    activeWindowId: id,
-  })),
+  bringToFront: (id) => set((state) => {
+    const newZIndex = state.maxZIndex + 1
+    return {
+      windows: state.windows.map(w => 
+        w.id === id 
+          ? { 
+              // Keep X/Y, push the active window slightly forward in Z so it
+              // visibly layers above the others in 3D space.
+              ...w, 
+              zIndex: newZIndex,
+              position: [w.position[0], w.position[1], newZIndex * 0.05] as [number, number, number],
+            }
+          : w
+      ),
+      maxZIndex: newZIndex,
+      activeWindowId: id,
+    }
+  }),
 
   setCameraPosition: (position) => set({ cameraPosition: position }),
 
@@ -405,19 +416,22 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   openTool: (tool) => {
     const state = get()
-    // Spread windows in a grid pattern
+    // Spread windows in a layered 3D grid pattern.
+    // Each new window steps slightly forward in Z so windows physically stack
+    // in depth and the active one floats above the rest.
     const count = state.windows.length
     const col = count % 3
     const row = Math.floor(count / 3)
-    const baseX = -4 + col * 5
-    const baseY = 2 - row * 4
+    const baseX = -8 + col * 8
+    const baseY = 4 - row * 6
+    const baseZ = count * 0.25 // layered depth
     
     set((s) => ({
       windows: [...s.windows, {
         id: `window-${Date.now()}`,
         type: tool.type,
         title: tool.name,
-        position: [baseX, baseY, 0],
+        position: [baseX, baseY, baseZ],
         size: tool.defaultSize,
         isMinimized: false,
         isMaximized: false,

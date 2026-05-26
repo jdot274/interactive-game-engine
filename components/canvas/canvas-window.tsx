@@ -1,7 +1,8 @@
 'use client'
 
 import { useRef, useState, useCallback } from 'react'
-import { Html } from '@react-three/drei'
+import { Billboard, Html } from '@react-three/drei'
+import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useCanvasStore, type CanvasWindow } from '@/lib/canvas-store'
 import { X, Minus, Maximize2, GripVertical } from 'lucide-react'
@@ -67,9 +68,10 @@ export function CanvasWindowComponent({ window }: CanvasWindowProps) {
     gridSize 
   } = useCanvasStore()
   
+  const { camera } = useThree()
   const [isDragging, setIsDragging] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
-  const dragStart = useRef<{ x: number; y: number; windowX: number; windowY: number } | null>(null)
+  const dragStart = useRef<{ x: number; y: number; windowX: number; windowY: number; windowZ: number } | null>(null)
   const resizeStart = useRef<{ x: number; y: number; width: number; height: number } | null>(null)
   
   const isActive = activeWindowId === window.id
@@ -90,16 +92,29 @@ export function CanvasWindowComponent({ window }: CanvasWindowProps) {
       y: e.clientY,
       windowX: window.position[0],
       windowY: window.position[1],
+      windowZ: window.position[2],
     }
+
+    // Compute screen-space basis from current camera so drag follows mouse
+    // regardless of orbit angle. Distance scales speed so far windows still feel right.
+    const right = new THREE.Vector3()
+    const up = new THREE.Vector3()
+    camera.matrix.extractBasis(right, up, new THREE.Vector3())
+    const distance = camera.position.distanceTo(
+      new THREE.Vector3(window.position[0], window.position[1], window.position[2])
+    )
+    const speed = distance * 0.0018
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!dragStart.current) return
       
-      const deltaX = (e.clientX - dragStart.current.x) * 0.02
-      const deltaY = -(e.clientY - dragStart.current.y) * 0.02
+      const dx = (e.clientX - dragStart.current.x) * speed
+      const dy = -(e.clientY - dragStart.current.y) * speed
       
-      let newX = dragStart.current.windowX + deltaX
-      let newY = dragStart.current.windowY + deltaY
+      const offset = right.clone().multiplyScalar(dx).add(up.clone().multiplyScalar(dy))
+      let newX = dragStart.current.windowX + offset.x
+      let newY = dragStart.current.windowY + offset.y
+      const newZ = dragStart.current.windowZ + offset.z
       
       if (snapToGrid) {
         newX = Math.round(newX / gridSize) * gridSize
@@ -107,7 +122,7 @@ export function CanvasWindowComponent({ window }: CanvasWindowProps) {
       }
       
       updateWindow(window.id, {
-        position: [newX, newY, window.position[2]]
+        position: [newX, newY, newZ]
       })
     }
 
@@ -120,7 +135,7 @@ export function CanvasWindowComponent({ window }: CanvasWindowProps) {
 
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
-  }, [bringToFront, window.id, window.position, updateWindow, snapToGrid, gridSize])
+  }, [bringToFront, window.id, window.position, updateWindow, snapToGrid, gridSize, camera])
 
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -194,17 +209,23 @@ export function CanvasWindowComponent({ window }: CanvasWindowProps) {
   if (window.isMinimized) return null
 
   return (
-    <Html
+    <Billboard
       position={window.position}
-      style={{
-        width: window.size[0],
-        height: window.size[1],
-        zIndex: window.zIndex,
-      }}
-      transform
-      occlude={false}
-      distanceFactor={10}
+      follow
+      lockX={false}
+      lockY={false}
+      lockZ={false}
     >
+      <Html
+        style={{
+          width: window.size[0],
+          height: window.size[1],
+          zIndex: window.zIndex,
+        }}
+        transform
+        occlude={false}
+        distanceFactor={10}
+      >
       <div
         className={cn(
           "flex flex-col rounded-lg overflow-hidden shadow-2xl transition-shadow duration-200",
@@ -294,7 +315,8 @@ export function CanvasWindowComponent({ window }: CanvasWindowProps) {
             <path d="M22 22H20V20H22V22ZM22 18H20V16H22V18ZM18 22H16V20H18V22ZM22 14H20V12H22V14ZM18 18H16V16H18V18ZM14 22H12V20H14V22Z" />
           </svg>
         </div>
-      </div>
-    </Html>
+        </div>
+      </Html>
+    </Billboard>
   )
 }

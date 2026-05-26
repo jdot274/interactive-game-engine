@@ -38,6 +38,8 @@ import {
   Layers,
   Sun,
   Plus,
+  Crosshair,
+  Repeat,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -190,17 +192,29 @@ function getGeometry(type: GeometryType) {
 interface SceneMeshProps {
   data: SceneObjectData
   isSelected: boolean
+  autoRotate: boolean
   onSelect: () => void
+  meshRef?: React.MutableRefObject<THREE.Mesh | null>
 }
 
-function SceneMesh({ data, isSelected, onSelect }: SceneMeshProps) {
-  const meshRef = useRef<THREE.Mesh>(null)
+function SceneMesh({ data, isSelected, autoRotate, onSelect, meshRef }: SceneMeshProps) {
+  const localRef = useRef<THREE.Mesh>(null)
+  const ref = meshRef ?? localRef
+
+  // Slow rotation when this mesh is selected and auto-rotate is on
+  useFrame((_, delta) => {
+    if (!ref.current) return
+    if (isSelected && autoRotate) {
+      ref.current.rotation.y += delta * 0.4
+      ref.current.rotation.x += delta * 0.15
+    }
+  })
 
   if (!data.visible) return null
 
   return (
     <mesh
-      ref={meshRef}
+      ref={ref}
       position={data.position}
       rotation={data.rotation}
       scale={data.scale}
@@ -451,8 +465,17 @@ export function R3FViewportContent() {
   const [css3dContent, setCss3dContent] = useState(defaultCSS3DContent)
   const [showSourceEditor, setShowSourceEditor] = useState(false)
 
+  // Selection-driven helpers
+  const [autoRotate, setAutoRotate] = useState(false)
+  const [focusTick, setFocusTick] = useState(0) // bump to trigger a re-focus
+
   const selectedObject = objects.find(o => o.id === selectedId) || null
-  const selectedMeshRef = useRef<THREE.Mesh>(null)
+  const selectedMeshRef = useRef<THREE.Mesh | null>(null)
+
+  // Auto-focus whenever the selected id changes
+  useEffect(() => {
+    if (selectedId) setFocusTick(t => t + 1)
+  }, [selectedId])
 
   const updateObject = (id: string, updates: Partial<SceneObjectData>) => {
     setObjects(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o))
