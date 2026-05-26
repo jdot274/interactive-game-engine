@@ -2,7 +2,6 @@
 
 import { useRef, useState, useCallback } from 'react'
 import { Html } from '@react-three/drei'
-import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useCanvasStore, type CanvasWindow } from '@/lib/canvas-store'
 import { X, Minus, Maximize2, GripVertical } from 'lucide-react'
@@ -14,9 +13,48 @@ import { R3FViewportContent } from './window-contents/r3f-viewport-content'
 import { ConsoleContent } from './window-contents/console-content'
 import { InspectorContent } from './window-contents/inspector-content'
 import { ReactPreviewContent } from './window-contents/react-preview-content'
+import { GLBViewerContent } from './window-contents/glb-viewer-content'
+import { CameraControlsContent } from './window-contents/camera-controls-content'
+import { LightingStudioContent } from './window-contents/lighting-studio-content'
+import { AnimationTimelineContent } from './window-contents/animation-timeline-content'
+import { NodeEditorContent } from './window-contents/node-editor-content'
+import { ShaderEditorContent } from './window-contents/shader-editor-content'
+import { PerformanceMonitorContent } from './window-contents/performance-monitor-content'
 
 interface CanvasWindowProps {
   window: CanvasWindow
+}
+
+const windowColors: Record<string, string> = {
+  'code-editor': '#3b82f6',
+  'r3f': '#f97316',
+  'react': '#06b6d4',
+  'console': '#22c55e',
+  'inspector': '#a855f7',
+  'glb-viewer': '#ec4899',
+  'camera-controls': '#8b5cf6',
+  'lighting-studio': '#eab308',
+  'animation-timeline': '#14b8a6',
+  'node-editor': '#f43f5e',
+  'shader-editor': '#6366f1',
+  'performance-monitor': '#10b981',
+}
+
+const windowIcons: Record<string, string> = {
+  'code-editor': 'Code',
+  'r3f': '3D',
+  'drei': '3D',
+  'threejs': '3D',
+  'react': 'React',
+  'console': 'CLI',
+  'inspector': 'Inspect',
+  'glb-viewer': 'GLB',
+  'camera-controls': 'Cam',
+  'lighting-studio': 'Light',
+  'animation-timeline': 'Anim',
+  'node-editor': 'Node',
+  'shader-editor': 'GLSL',
+  'performance-monitor': 'Perf',
 }
 
 export function CanvasWindowComponent({ window }: CanvasWindowProps) {
@@ -35,6 +73,7 @@ export function CanvasWindowComponent({ window }: CanvasWindowProps) {
   const resizeStart = useRef<{ x: number; y: number; width: number; height: number } | null>(null)
   
   const isActive = activeWindowId === window.id
+  const accentColor = windowColors[window.type] || '#666'
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -133,27 +172,22 @@ export function CanvasWindowComponent({ window }: CanvasWindowProps) {
         return <InspectorContent />
       case 'react':
         return <ReactPreviewContent />
+      case 'glb-viewer':
+        return <GLBViewerContent />
+      case 'camera-controls':
+        return <CameraControlsContent />
+      case 'lighting-studio':
+        return <LightingStudioContent />
+      case 'animation-timeline':
+        return <AnimationTimelineContent />
+      case 'node-editor':
+        return <NodeEditorContent />
+      case 'shader-editor':
+        return <ShaderEditorContent />
+      case 'performance-monitor':
+        return <PerformanceMonitorContent />
       default:
-        return <div className="p-4 text-muted-foreground">Unknown window type</div>
-    }
-  }
-
-  const getWindowIcon = () => {
-    switch (window.type) {
-      case 'code-editor':
-        return '📝'
-      case 'r3f':
-      case 'drei':
-      case 'threejs':
-        return '🎮'
-      case 'console':
-        return '⚡'
-      case 'inspector':
-        return '🔍'
-      case 'react':
-        return '⚛️'
-      default:
-        return '📦'
+        return <div className="p-4 text-muted-foreground">Unknown window type: {window.type}</div>
     }
   }
 
@@ -175,12 +209,14 @@ export function CanvasWindowComponent({ window }: CanvasWindowProps) {
         className={cn(
           "flex flex-col rounded-lg overflow-hidden shadow-2xl transition-shadow duration-200",
           "border bg-card",
-          isActive ? "border-primary shadow-primary/20" : "border-border",
+          isActive ? "shadow-lg" : "border-border",
           isDragging && "cursor-grabbing",
         )}
         style={{
           width: window.size[0],
           height: window.size[1],
+          borderColor: isActive ? accentColor : undefined,
+          boxShadow: isActive ? `0 0 20px ${accentColor}30` : undefined,
         }}
         onMouseDown={handleMouseDown}
       >
@@ -188,13 +224,22 @@ export function CanvasWindowComponent({ window }: CanvasWindowProps) {
         <div
           className={cn(
             "flex items-center gap-2 px-3 py-2 border-b cursor-grab select-none",
-            isActive ? "bg-secondary" : "bg-card",
             isDragging && "cursor-grabbing"
           )}
+          style={{ 
+            background: isActive 
+              ? `linear-gradient(90deg, ${accentColor}20 0%, transparent 100%)` 
+              : undefined 
+          }}
           onMouseDown={handleDragStart}
         >
           <GripVertical className="w-3 h-3 text-muted-foreground" />
-          <span className="text-sm">{getWindowIcon()}</span>
+          <div 
+            className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white"
+            style={{ backgroundColor: accentColor }}
+          >
+            {windowIcons[window.type] || 'WIN'}
+          </div>
           <span className="flex-1 text-sm font-medium truncate text-foreground">
             {window.title}
           </span>

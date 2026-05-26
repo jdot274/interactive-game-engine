@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic'
 import { Toolbar } from '@/components/canvas/toolbar'
 import { MinimizedWindows } from '@/components/canvas/minimized-windows'
 import { HelpOverlay } from '@/components/canvas/help-overlay'
+import { ToolStore } from '@/components/canvas/tool-store'
 
 // Dynamic import to avoid SSR issues with Three.js
 const InfiniteCanvas = dynamic(
@@ -30,6 +31,7 @@ export default function CanvasEnginePage() {
       </div>
       <MinimizedWindows />
       <HelpOverlay />
+      <ToolStore />
     </main>
   )
 }

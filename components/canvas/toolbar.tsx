@@ -1,40 +1,19 @@
 'use client'
 
-import { useCanvasStore, type WindowType } from '@/lib/canvas-store'
+import { useCanvasStore, TOOLS, type Tool } from '@/lib/canvas-store'
 import { 
   Play, 
   Pause, 
-  Plus, 
   Grid3X3, 
   Magnet, 
   ZoomIn, 
   ZoomOut,
-  Code,
   Box,
-  Terminal,
-  Eye,
-  Atom,
   Layers,
   Settings,
-  ChevronDown
+  Store
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { cn } from '@/lib/utils'
-
-const windowTypes: { type: WindowType; label: string; icon: React.ReactNode }[] = [
-  { type: 'code-editor', label: 'Code Editor', icon: <Code className="w-4 h-4" /> },
-  { type: 'r3f', label: '3D Viewport', icon: <Box className="w-4 h-4" /> },
-  { type: 'react', label: 'React Preview', icon: <Atom className="w-4 h-4" /> },
-  { type: 'console', label: 'Console', icon: <Terminal className="w-4 h-4" /> },
-  { type: 'inspector', label: 'Inspector', icon: <Eye className="w-4 h-4" /> },
-]
 
 export function Toolbar() {
   const { 
@@ -46,22 +25,10 @@ export function Toolbar() {
     toggleSnapToGrid,
     zoom,
     setZoom,
-    addWindow,
-    windows
+    windows,
+    setToolStoreOpen,
+    toolStoreOpen
   } = useCanvasStore()
-
-  const handleAddWindow = (type: WindowType, label: string) => {
-    // Calculate a position that doesn't overlap existing windows
-    const offset = windows.length * 0.5
-    addWindow({
-      type,
-      title: label,
-      position: [offset, offset, 0],
-      size: type === 'console' ? [400, 200] : [400, 300],
-      isMinimized: false,
-      isMaximized: false,
-    })
-  }
 
   return (
     <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-2 bg-card/80 backdrop-blur-lg border-b border-border">
@@ -73,7 +40,7 @@ export function Toolbar() {
           </div>
           <div>
             <h1 className="text-sm font-bold text-foreground">Canvas Engine</h1>
-            <p className="text-[10px] text-muted-foreground">WebGL Runtime</p>
+            <p className="text-[10px] text-muted-foreground">WebGL Runtime Platform</p>
           </div>
         </div>
       </div>
@@ -102,28 +69,16 @@ export function Toolbar() {
 
         <div className="w-px h-6 bg-border mx-2" />
 
-        {/* Add Window */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2">
-              <Plus className="w-4 h-4" />
-              <span className="text-xs">Add Window</span>
-              <ChevronDown className="w-3 h-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="center" className="w-48">
-            {windowTypes.map((item) => (
-              <DropdownMenuItem
-                key={item.type}
-                onClick={() => handleAddWindow(item.type, item.label)}
-                className="gap-2"
-              >
-                {item.icon}
-                <span>{item.label}</span>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Tool Store Button */}
+        <Button 
+          variant={toolStoreOpen ? 'default' : 'outline'} 
+          size="sm" 
+          className="gap-2"
+          onClick={() => setToolStoreOpen(true)}
+        >
+          <Store className="w-4 h-4" />
+          <span className="text-xs">Tool Store</span>
+        </Button>
 
         <div className="w-px h-6 bg-border mx-2" />
 
@@ -175,10 +130,13 @@ export function Toolbar() {
         </div>
       </div>
 
-      {/* Right Section - Settings */}
-      <div className="flex items-center gap-2">
-        <div className="text-xs text-muted-foreground">
-          {windows.length} window{windows.length !== 1 ? 's' : ''}
+      {/* Right Section - Status & Settings */}
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 px-2 py-1 bg-secondary rounded-md">
+          <Box className="w-3 h-3 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">
+            {windows.length} tool{windows.length !== 1 ? 's' : ''} active
+          </span>
         </div>
         <Button variant="ghost" size="icon" className="h-8 w-8">
           <Settings className="w-4 h-4" />
